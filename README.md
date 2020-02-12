@@ -1,2 +1,2 @@
 # Projekt_ATV
- A-Rühm ATV projekt
+ A-Rühm ATV brojekt
