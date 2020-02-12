@@ -1,5 +1,5 @@
 # Projekt_ATV
-Team 3 - Projekt ATV
+A-Rühm Projekt ATV
 
 TÄHELEPANU!
 Tänan tähelepanu eest.
