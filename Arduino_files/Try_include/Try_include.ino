@@ -4,6 +4,16 @@
 // Channels: 1: R-hor,  2: R-ver,  3: L-ver,  4: L-hor,  5: custom, 6: custom.
 // All channel values range from 0-1000
 
+// PINS
+int magnet_sensor = A0;
+int motor_step = 6;
+int motor_direction = 7;
+int motor_enable = 8;
+int linear_enable = 9;
+int linear_direction = 13;
+int throttle_pin = 5;
+// PINS
+
 int target_pos = 500;
 int current_pos = 500;
 unsigned long int a,b,c;
@@ -24,14 +34,14 @@ int throttle;
 void setup() {
   start_receiver();      // Start receiving channels' values
 
-  pinMode(A0, INPUT);    // Magnet sensor pin
-  pinMode(6, OUTPUT);    // Motor step pin
-  pinMode(7, OUTPUT);     // Motor direction pin
-  pinMode(8, OUTPUT);    // Motor enabled pin
-  pinMode(9, OUTPUT);     // Linear enabled pin
-  pinMode(13, OUTPUT);    // Linear direction pin
+  pinMode(magnet_sensor, INPUT);    // Magnet sensor pin
+  pinMode(motor_step, OUTPUT);    // Motor step pin
+  pinMode(motor_direction, OUTPUT);     // Motor direction pin
+  pinMode(motor_enable, OUTPUT);    // Motor enabled pin
+  pinMode(linear_enable, OUTPUT);     // Linear enabled pin
+  pinMode(linear_direction, OUTPUT);    // Linear direction pin
 
-  pinMode(5, OUTPUT);     // Throttle pin
+  pinMode(throttle_pin, OUTPUT);     // Throttle pin
 
   Serial.begin(9600);
 }
@@ -42,36 +52,36 @@ void loop() {
 
   read_rc();    //  Write channel' values to list ch[i]
 
-  magnet_value = analogRead(A0);
+  magnet_value = analogRead(magnet_sensor);
 
   // START - BRAKE
   //Serial.println(magnet_value);
   
   //new
   if (ch[3] < 490){
-    analogWrite(5, 40);  // To stop motor from running
+    analogWrite(throttle_pin, 40);  // To stop motor from running
     input_brake_percent = ch[3] / 490.0; // 1 -> 0, 1 is off, 0 is fully on
     output_brake_percent = (brake_on_value - magnet_value) / float(brake_on_value - brake_off_value); // over 1 is over off, 1 is off, 0 is full on,
     //Serial.println(magnet_value);
     if (input_brake_percent < output_brake_percent){
-      digitalWrite(9, HIGH);
-      digitalWrite(13, LOW);
+      digitalWrite(linear_enable, HIGH);
+      digitalWrite(linear_direction, LOW);
       }
     else if (input_brake_percent > output_brake_percent){
-      digitalWrite(9, HIGH);
-      digitalWrite(13, HIGH);
+      digitalWrite(linear_enable, HIGH);
+      digitalWrite(linear_direction, HIGH);
       }
     }
   else if (magnet_value > brake_off_value){
-    analogWrite(5, 40);  // To stop motor from running
-    digitalWrite(9, HIGH);
-    digitalWrite(13, HIGH);
+    analogWrite(throttle_pin, 40);  // To stop motor from running
+    digitalWrite(linear_enable, HIGH);
+    digitalWrite(linear_direction, HIGH);
     }
   else{
     digitalWrite(9, LOW); // To stop brake from going over off position
     if (990 > ch[3] && ch[3] > 550){
       throttle = map(ch[3], 520, 980, 40, 240);
-      analogWrite(5, throttle);
+      analogWrite(throttle_pin, throttle);
       }
     else{
       //IDLE - Handbrake maybe
