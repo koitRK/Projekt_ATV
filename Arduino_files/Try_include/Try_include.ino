@@ -12,10 +12,19 @@ int motor_enable = 8;
 int linear_enable = 9;
 int linear_direction = 13;
 int throttle_pin = 5;
+int encoder_CLK_pin = 10; //Digital Pin 10
+int encoder_DO_pin  = 11; //Digital Pin 11
+int encoder_CSn_pin = 12; //Digital Pin 12
 // PINS
 
-int target_pos = 500;
-int current_pos = 500;
+
+unsigned int encoder_reading;
+int encoder_value;
+int encoder_middle_value = 175;  //100 - 250
+int encoder_left_value = 250;
+int encoder_right_value = 100;
+int target_pos = 2500;
+int current_pos = 2500;
 unsigned long int a,b,c;
 int x[15],ch1[15],ch[7],i;
 bool dir = false;
@@ -26,6 +35,7 @@ int brake_off_value = 440;
 int brake_on_value = 520;
 int target_brake_value;
 int current_brake_value;
+bool pause_steering = false;
 
 float input_brake_percent;
 float output_brake_percent;
@@ -33,6 +43,11 @@ int throttle;
 
 void setup() {
   start_receiver();      // Start receiving channels' values
+
+  pinMode(encoder_CSn_pin, OUTPUT);   // Chip select
+  pinMode(encoder_CLK_pin, OUTPUT);   // Serial clock
+  pinMode(encoder_DO_pin, INPUT);   // Serial data IN/OUT   
+  digitalWrite(encoder_CLK_pin, HIGH);  
 
   pinMode(magnet_sensor, INPUT);    // Magnet sensor pin
   pinMode(motor_step, OUTPUT);    // Motor step pin
@@ -48,12 +63,22 @@ void setup() {
 
 void loop() {
 
-
+  ReadSSI();
+  encoder_value = map(encoder_reading, 0, 4095, 0, 360);
 
   read_rc();    //  Write channel' values to list ch[i]
 
+  if (ch[5] > 500){
+    pause_steering = true;
+  }
+  else{
+    pause_steering = false;
+  }
+  
   magnet_value = analogRead(magnet_sensor);
 
+
+  /*
   // START - BRAKE
   //Serial.println(magnet_value);
   
@@ -87,68 +112,43 @@ void loop() {
       //IDLE - Handbrake maybe
       }
     }
-      
-    
-  //new
-  /* ORG
-  if (ch[3] < 490){
-    target_brake_value = map(ch[3], 0, 490, 100, 0);
-    current_brake_value = map(magnet_value, brake_off_value, brake_on_value, 0, 100);
-    
-    if (current_brake_value < target_brake_value){
-      digitalWrite(9, HIGH);
-      digitalWrite(13, LOW);
-    }
-    else if (current_brake_value > target_brake_value){
-      digitalWrite(9, HIGH);
-      digitalWrite(13, HIGH);
-    }
-    else{
-      digitalWrite(9, LOW);
-    }
-  }
-  else if (current_brake_value < 0){
-  digitalWrite(9, HIGH);
-  digitalWrite(13, LOW);
-  }
-  else if (current_brake_value > 0){
-  digitalWrite(9, HIGH);
-  digitalWrite(13, HIGH);
-  }
-  ORG */
-  // END - BRAKE
-  // START - MOTOR
 
-  counter += 1;
-  /*
-  if (counter >= 50){
-    Serial.print(ch[1]);
-    Serial.print("    ");
-    Serial.print(current_pos);
-    Serial.print("\n");
-    counter = 0;
-  }
   */
+    
+  // END - BRAKE
+  // START - STEERING
 
-  /*
-  target_pos = ch[1] * 10;
-  if (abs(current_pos - target_pos) > 80){
-    if (current_pos > target_pos){
-      dir = true;
+  
+  target_pos = map(ch[1], 0, 1000, encoder_left_value, encoder_right_value);
+
+  if (not pause_steering){
+    if (encoder_value > target_pos){
+      dir = false;
       enabled = true;
     }
-    else if (current_pos < target_pos){
-      dir = false;
+    else if (encoder_value < target_pos){
+      dir = true;
       enabled = true;
     }
     else{
       enabled = false;
-    }
-  
-    one_step(enabled, dir, 70);
+    }    
+    one_step(enabled, dir, 100);
   }
-  */
 
-  // END - MOTOR
+  
+  counter += 1;
+  
+  if (counter >= 50){
+    Serial.print(ch[1]);
+    Serial.print("    ");
+    Serial.print(target_pos);
+    Serial.print("   ");
+    Serial.print(encoder_value);
+    Serial.print("\n");
+    counter = 0;
+  }
+
+  // END - STEERING
 
 }
