@@ -130,8 +130,8 @@ void loop() {
   }
   */
 
-  /*
-  target_pos = ch[1] * 10;
+  
+  target_pos = ch[1] * 1;
   if (abs(current_pos - target_pos) > 80){
     if (current_pos > target_pos){
       dir = true;
@@ -147,7 +147,7 @@ void loop() {
   
     one_step(enabled, dir, 70);
   }
-  */
+  
 
   // END - MOTOR
 
