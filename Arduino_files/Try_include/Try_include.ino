@@ -1,8 +1,8 @@
-// Using Multichannel_read.ino functions: start_receiver(), read_rc().
-// Channel values are stored in ch[i], ch[1] == channel 1
+#include "PPMReader.h"
 
-// Channels: 1: R-hor,  2: R-ver,  3: L-ver,  4: L-hor,  5: custom, 6: custom.
-// All channel values range from 0-1000
+
+// PPMReader(pin, interrupt)
+PPMReader ppmReader(2, 0, false);
 
 // PINS
 int magnet_sensor = A0;
@@ -18,6 +18,7 @@ int throttle_pin = 5;
 int encoder_CLK_pin = 10; //Digital Pin 10
 int encoder_DO_pin  = 11; //Digital Pin 11
 int encoder_CSn_pin = 12; //Digital Pin 12
+int e_stop = 15;  //Digital Pin 15
 // PINS
 
 
@@ -35,7 +36,7 @@ bool enabled = true;
 int counter = 0;
 int magnet_value; // analog readings
 int brake_off_value = 450; //440 original
-int brake_on_value = 525;  //520 original
+int brake_on_value = 527;  //520 original
 int target_brake_value;
 int current_brake_value;
 bool pause_steering = false;
@@ -47,14 +48,23 @@ float current_brake_percent;
 int throttle;
 int faultcount = 0;
 
+
+int received_steering;
+int received_throttle;
+int received_gear;
+int received_steering_lock;
+int received_handbrake;
+
 void setup() {
-  start_receiver();      // Start receiving channels' values
+  
+  //Serial.begin(9600);
 
   pinMode(encoder_CSn_pin, OUTPUT);   // Chip select
   pinMode(encoder_CLK_pin, OUTPUT);   // Serial clock
   pinMode(encoder_DO_pin, INPUT);   // Serial data IN/OUT   
   digitalWrite(encoder_CLK_pin, HIGH);  
 
+  pinMode(e_stop, INPUT);  // E_Stop relay
   pinMode(magnet_sensor, INPUT);    // Magnet sensor pin
   pinMode(steering_stepper_step, OUTPUT);    // steering_stepper step pin
   pinMode(steering_stepper_direction, OUTPUT);     // steering_stepper direction pin
@@ -64,24 +74,37 @@ void setup() {
 
   pinMode(throttle_pin, OUTPUT);     // Throttle pin
 
-  Serial.begin(9600);
 }
 
 void loop() {
-
+  
   ReadSSI();
   encoder_value = map(encoder_reading, 0, 4095, 0, 360);
 
-  read_rc();    //  Write channel' values to list ch[i]
+  int mySensVals[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  static int count;
+  while (ppmReader.get(count) != 0) {
+    mySensVals[count] = ppmReader.get(count);
+    count++;
+  }
+  count = 0;
 
-  if (ch[6] > 500){
+  received_throttle = mySensVals[1]; // values 1000 to 2000
+  received_steering = mySensVals[0];
+  received_steering_lock = mySensVals[5];
+  received_gear = mySensVals[4];
+  received_handbrake = mySensVals[6];
+  //Serial.println(received_handbrake);
+
+  
+  if (received_steering_lock > 1500){
     pause_steering = true;
   }
   else{
     pause_steering = false;
   }
 
-  if (ch[5] > 500){
+  if (received_gear > 1500){
     reverse_gear = true;
     faultcount += 1;
     //Serial.println((String) faultcount + "  ch5: " + ch[5] + "  ch6: " + ch[6]);
@@ -91,7 +114,7 @@ void loop() {
     reverse_gear = false;
   }
 
-  if (ch[7] > 100){
+  if (received_handbrake > 1100){
     handbrake_on = true;
   }
   else{
@@ -104,14 +127,18 @@ void loop() {
   // START - BRAKE(and throttle)  
   
   magnet_value = analogRead(magnet_sensor); 
+  if (magnet_value < 527){
+    //Serial.println(magnet_value);
 
+  }
   
 
   current_brake_percent = (brake_on_value - magnet_value) / float(brake_on_value - brake_off_value); // over 1 is over off, 1 is off, 0 is full on,
 
   
-  if (ch[2] < 490){ //BRAKING
-    //analogWrite(throttle_pin, 40);  // To stop motor from running
+  if (received_throttle < 1490 || digitalRead(e_stop) == LOW || handbrake_on){ //BRAKING
+
+    analogWrite(throttle_pin, 40);  // To stop motor from running
     target_brake_percent = 0;
     if (target_brake_percent < current_brake_percent){ // Extends until brake is engaged
       digitalWrite(linear_enable, HIGH);
@@ -124,7 +151,7 @@ void loop() {
   }
   else{ //NOT BRAKING
     target_brake_percent = 1;
-    if (target_brake_percent > current_brake_percent){  // Contracts until brake is disengaged
+    if (target_brake_percent > current_brake_percent ){  // Contracts until brake is disengaged
       //analogWrite(throttle_pin, 40);  // To stop motor from running
       digitalWrite(linear_enable, HIGH);
       digitalWrite(linear_direction, HIGH);
@@ -142,8 +169,8 @@ void loop() {
         digitalWrite(reverse_gear_pin, LOW);  
       }
       
-      if (ch[2] > 550){  // Starts throttle
-        throttle = map(ch[2], 520, 1000, 40, 150);
+      if (received_throttle > 1550){  // Starts throttle
+        throttle = map(received_throttle, 1550, 2000, 40, 150);
         analogWrite(throttle_pin, throttle);  // Throttles motor
       }
       else{
@@ -182,14 +209,14 @@ void loop() {
   
   // START - STEERING
   
-  target_pos = map(ch[1], 0, 1000, encoder_left_value, encoder_right_value);
+  target_pos = map(received_steering, 1000, 2000, encoder_left_value, encoder_right_value);
 
   if (not pause_steering){
-    if (encoder_value > target_pos){
+    if (encoder_value > target_pos){ // >
       dir = false;
       enabled = true;
     }
-    else if (encoder_value < target_pos){
+    else if (encoder_value < target_pos){  // <
       dir = true;
       enabled = true;
     }
