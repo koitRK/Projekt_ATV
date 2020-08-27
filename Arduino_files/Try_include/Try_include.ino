@@ -1,32 +1,40 @@
 #include "PPMReader.h"
 
 
-// PPMReader(pin, interrupt)
-PPMReader ppmReader(2, 0, false);
+
 
 // PINS
+int rc_receiver_pin = 2; // Peab olema 1-2?
 int magnet_sensor = A0;
-int steering_stepper_step = 6;
-int steering_stepper_direction = 7;
-int steering_stepper_enable = 8;
-
+int steering_stepper_step = 7;  // og 6
+int steering_stepper_direction = 8;  //og 7
+int steering_stepper_enable = 9; //og 8
+ 
 int linear_enable = 4;
+int linear_direction = 3; // og 13
 // pin 9 on vist atv mootori suund, ehk tagukäik
-int reverse_gear_pin = 9;
-int linear_direction = 13;
+int reverse_gear_pin = 6; //og 9
 int throttle_pin = 5;
 int encoder_CLK_pin = 10; //Digital Pin 10
 int encoder_DO_pin  = 11; //Digital Pin 11
 int encoder_CSn_pin = 12; //Digital Pin 12
-int e_stop = 15;  //Digital Pin 15
+int e_stop = A1;  //Digital Pin 15
+
+//int left_blinker = ;
+//int right_blinker = ;
+//int full_lights = ;
+//int brake_light = ;
 // PINS
+
+// PPMReader(pin, interrupt)
+PPMReader ppmReader(rc_receiver_pin, 0, false);
 
 
 unsigned int encoder_reading;
 int encoder_value;
 int encoder_middle_value = 221;  //100 - 250 seda ei kasuta nikuinii
-int encoder_left_value = 302;
-int encoder_right_value = 130;
+int encoder_left_value = 310;
+int encoder_right_value = 143;
 int target_pos = 2500;
 int current_pos = 2500;
 unsigned long int a,b,c;
@@ -35,8 +43,8 @@ bool dir = false;
 bool enabled = true;
 int counter = 0;
 int magnet_value; // analog readings
-int brake_off_value = 450; //440 original
-int brake_on_value = 527;  //520 original
+int brake_off_value = 522; //450 original
+int brake_on_value = 532;  //527 original
 int target_brake_value;
 int current_brake_value;
 bool pause_steering = false;
@@ -74,6 +82,11 @@ void setup() {
 
   pinMode(throttle_pin, OUTPUT);     // Throttle pin
 
+  //pinMode(left_blinker, OUTPUT);
+  //pinMode(right_blinker, OUTPUT);
+  //pinMode(full_lights, OUTPUT);
+  //pinMode(brake_light, OUTPUT);
+
 }
 
 void loop() {
@@ -88,7 +101,6 @@ void loop() {
     count++;
   }
   count = 0;
-
   received_throttle = mySensVals[1]; // values 1000 to 2000
   received_steering = mySensVals[0];
   received_steering_lock = mySensVals[5];
@@ -96,6 +108,7 @@ void loop() {
   received_handbrake = mySensVals[6];
   //Serial.println(received_handbrake);
 
+  
   
   if (received_steering_lock > 1500){
     pause_steering = true;
@@ -137,7 +150,6 @@ void loop() {
 
   
   if (received_throttle < 1490 || digitalRead(e_stop) == LOW || handbrake_on){ //BRAKING
-
     analogWrite(throttle_pin, 40);  // To stop motor from running
     target_brake_percent = 0;
     if (target_brake_percent < current_brake_percent){ // Extends until brake is engaged
@@ -181,7 +193,7 @@ void loop() {
     }
   }
 
-
+  
 
 
   
@@ -223,7 +235,7 @@ void loop() {
     else{
       enabled = false;
     }    
-    one_step(enabled, dir, 6);
+    one_step(enabled, dir, 60);
   }
 
   

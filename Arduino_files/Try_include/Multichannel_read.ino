@@ -3,8 +3,8 @@
 
 void start_receiver() {
 Serial.begin(9600);
-  pinMode(2, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(2), read_me, FALLING);
+  pinMode(rc_receiver_pin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(rc_receiver_pin), read_me, FALLING);
   // enabling interrupt at pin 2
 }
 
