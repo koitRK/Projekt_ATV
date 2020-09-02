@@ -3,27 +3,27 @@
 void one_step(bool enabled, bool dir, float step_delay){
   
   if (enabled){
-    digitalWrite(8, LOW);
+    digitalWrite(steering_stepper_enable, LOW);
   }
   else{
-    digitalWrite(8, HIGH);
+    digitalWrite(steering_stepper_enable, HIGH);
   }  
 
   if (dir){
-    digitalWrite(7, HIGH);
+    digitalWrite(steering_stepper_direction, HIGH);
   }
   else{
-    digitalWrite(7, LOW);
+    digitalWrite(steering_stepper_direction, LOW);
   }
 
   if (enabled){
-    delayMicroseconds(step_delay); 
-    digitalWrite(6, HIGH);
-    delayMicroseconds(step_delay); 
-    digitalWrite(6, LOW);
+    //delayMicroseconds(step_delay); 
+    digitalWrite(steering_stepper_step, HIGH);
+    //delayMicroseconds(step_delay); 
+    digitalWrite(steering_stepper_step, LOW);
   }
 
-
+  /*
   if (enabled){
     if (dir){
       current_pos -= 1;
@@ -31,5 +31,5 @@ void one_step(bool enabled, bool dir, float step_delay){
     else{
       current_pos += 1;
     }
-  }
+  }*/
 }

@@ -1,29 +1,40 @@
-// Using Multichannel_read.ino functions: start_receiver(), read_rc().
-// Channel values are stored in ch[i], ch[1] == channel 1
+#include "PPMReader.h"
 
-// Channels: 1: R-hor,  2: R-ver,  3: L-ver,  4: L-hor,  5: custom, 6: custom.
-// All channel values range from 0-1000
+
+
 
 // PINS
+int rc_receiver_pin = 2; // Peab olema 1-2?
 int magnet_sensor = A0;
-int motor_step = 6;
-int motor_direction = 7;
-int motor_enable = 8;
+int steering_stepper_step = 7;  // og 6
+int steering_stepper_direction = 8;  //og 7
+int steering_stepper_enable = 9; //og 8
+ 
 int linear_enable = 4;
+int linear_direction = 3; // og 13
 // pin 9 on vist atv mootori suund, ehk tagukäik
-int linear_direction = 13;
+int reverse_gear_pin = 6; //og 9
 int throttle_pin = 5;
 int encoder_CLK_pin = 10; //Digital Pin 10
 int encoder_DO_pin  = 11; //Digital Pin 11
 int encoder_CSn_pin = 12; //Digital Pin 12
+int e_stop = A1;  //Digital Pin 15
+
+//int left_blinker = ;
+//int right_blinker = ;
+//int full_lights = ;
+//int brake_light = ;
 // PINS
+
+// PPMReader(pin, interrupt)
+PPMReader ppmReader(rc_receiver_pin, 0, false);
 
 
 unsigned int encoder_reading;
 int encoder_value;
 int encoder_middle_value = 221;  //100 - 250 seda ei kasuta nikuinii
-int encoder_left_value = 302;
-int encoder_right_value = 130;
+int encoder_left_value = 310;
+int encoder_right_value = 143;
 int target_pos = 2500;
 int current_pos = 2500;
 unsigned long int a,b,c;
@@ -32,74 +43,161 @@ bool dir = false;
 bool enabled = true;
 int counter = 0;
 int magnet_value; // analog readings
-int brake_off_value = 440; //440 original
-int brake_on_value = 520;  //520 original
+int brake_off_value = 522; //450 original
+int brake_on_value = 532;  //527 original
 int target_brake_value;
 int current_brake_value;
 bool pause_steering = false;
+bool handbrake_on = false;
+bool reverse_gear = false;
 
-float input_brake_percent;
-float output_brake_percent;
+float target_brake_percent;
+float current_brake_percent;
 int throttle;
+int faultcount = 0;
+
+
+int received_steering;
+int received_throttle;
+int received_gear;
+int received_steering_lock;
+int received_handbrake;
 
 void setup() {
-  start_receiver();      // Start receiving channels' values
+  
+  //Serial.begin(9600);
 
   pinMode(encoder_CSn_pin, OUTPUT);   // Chip select
   pinMode(encoder_CLK_pin, OUTPUT);   // Serial clock
   pinMode(encoder_DO_pin, INPUT);   // Serial data IN/OUT   
   digitalWrite(encoder_CLK_pin, HIGH);  
 
+  pinMode(e_stop, INPUT);  // E_Stop relay
   pinMode(magnet_sensor, INPUT);    // Magnet sensor pin
-  pinMode(motor_step, OUTPUT);    // Motor step pin
-  pinMode(motor_direction, OUTPUT);     // Motor direction pin
-  pinMode(motor_enable, OUTPUT);    // Motor enabled pin
+  pinMode(steering_stepper_step, OUTPUT);    // steering_stepper step pin
+  pinMode(steering_stepper_direction, OUTPUT);     // steering_stepper direction pin
+  pinMode(steering_stepper_enable, OUTPUT);    // steering_stepper enabled pin
   pinMode(linear_enable, OUTPUT);     // Linear enabled pin
   pinMode(linear_direction, OUTPUT);    // Linear direction pin
 
   pinMode(throttle_pin, OUTPUT);     // Throttle pin
 
-  Serial.begin(9600);
+  //pinMode(left_blinker, OUTPUT);
+  //pinMode(right_blinker, OUTPUT);
+  //pinMode(full_lights, OUTPUT);
+  //pinMode(brake_light, OUTPUT);
+
 }
 
 void loop() {
-
+  
   ReadSSI();
   encoder_value = map(encoder_reading, 0, 4095, 0, 360);
 
-  read_rc();    //  Write channel' values to list ch[i]
+  int mySensVals[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  static int count;
+  while (ppmReader.get(count) != 0) {
+    mySensVals[count] = ppmReader.get(count);
+    count++;
+  }
+  count = 0;
+  received_throttle = mySensVals[1]; // values 1000 to 2000
+  received_steering = mySensVals[0];
+  received_steering_lock = mySensVals[5];
+  received_gear = mySensVals[4];
+  received_handbrake = mySensVals[6];
+  //Serial.println(received_handbrake);
 
-  if (ch[5] > 500){
+  
+  
+  if (received_steering_lock > 1500){
     pause_steering = true;
   }
   else{
     pause_steering = false;
   }
-  
-  magnet_value = analogRead(magnet_sensor);
+
+  if (received_gear > 1500){
+    reverse_gear = true;
+    faultcount += 1;
+    //Serial.println((String) faultcount + "  ch5: " + ch[5] + "  ch6: " + ch[6]);
+
+  }
+  else{
+    reverse_gear = false;
+  }
+
+  if (received_handbrake > 1100){
+    handbrake_on = true;
+  }
+  else{
+    handbrake_on = false;
+  }
 
 
- 
-  // START - BRAKE(and throttle)
-  //Serial.println(magnet_value);
+
+
+  // START - BRAKE(and throttle)  
   
-  //new
-  if (ch[3] < 490){
+  magnet_value = analogRead(magnet_sensor); 
+  if (magnet_value < 527){
+    //Serial.println(magnet_value);
+
+  }
+  
+
+  current_brake_percent = (brake_on_value - magnet_value) / float(brake_on_value - brake_off_value); // over 1 is over off, 1 is off, 0 is full on,
+
+  
+  if (received_throttle < 1490 || digitalRead(e_stop) == LOW || handbrake_on){ //BRAKING
     analogWrite(throttle_pin, 40);  // To stop motor from running
-    input_brake_percent = ch[3] / 490.0; // 1 -> 0, 1 is off, 0 is fully on
-    output_brake_percent = (brake_on_value - magnet_value) / float(brake_on_value - brake_off_value); // over 1 is over off, 1 is off, 0 is full on,
-    
-    if (input_brake_percent < output_brake_percent){ // Should apply brake
+    target_brake_percent = 0;
+    if (target_brake_percent < current_brake_percent){ // Extends until brake is engaged
       digitalWrite(linear_enable, HIGH);
       digitalWrite(linear_direction, LOW);
-      Serial.println(777);
-      }
-    else if (input_brake_percent > output_brake_percent){  // Should disengage brake
+      //Serial.println("EXTENDING");
+    }
+    else{
+        digitalWrite(linear_enable, LOW); //Brake is in desired position, disables linear actuator
+    }
+  }
+  else{ //NOT BRAKING
+    target_brake_percent = 1;
+    if (target_brake_percent > current_brake_percent ){  // Contracts until brake is disengaged
+      //analogWrite(throttle_pin, 40);  // To stop motor from running
       digitalWrite(linear_enable, HIGH);
       digitalWrite(linear_direction, HIGH);
-      Serial.println("££###££");
-      }
+      //Serial.println("CONTRACTING");
     }
+    else{
+      digitalWrite(linear_enable, LOW); //Brake is in desired position, disables linear actuator
+  
+      // !!!%%%!!!   start MOTOR !!!%%%!!!
+
+      if (reverse_gear){
+        digitalWrite(reverse_gear_pin, HIGH);
+      }
+      else{
+        digitalWrite(reverse_gear_pin, LOW);  
+      }
+      
+      if (received_throttle > 1550){  // Starts throttle
+        throttle = map(received_throttle, 1550, 2000, 40, 150);
+        analogWrite(throttle_pin, throttle);  // Throttles motor
+      }
+      else{
+        analogWrite(throttle_pin, 40);  // To stop motor from running
+      }
+        
+      // !!!%%%!!!  end MOTOR !!!%%%!!!
+    }
+  }
+
+  
+
+
+  
+  /*
   else if (magnet_value > brake_off_value){  // Takes off brake and stops motor
     analogWrite(throttle_pin, 40);
     digitalWrite(linear_enable, HIGH);
@@ -115,44 +213,47 @@ void loop() {
       //IDLE - Handbrake maybe
       }
     }
+    */
 
   // END - BRAKE
+  
 
   
   // START - STEERING
   
-  target_pos = map(ch[1], 0, 1000, encoder_left_value, encoder_right_value);
+  target_pos = map(received_steering, 1000, 2000, encoder_left_value, encoder_right_value);
 
   if (not pause_steering){
-    if (encoder_value > target_pos){
+    if (encoder_value > target_pos){ // >
       dir = false;
       enabled = true;
     }
-    else if (encoder_value < target_pos){
+    else if (encoder_value < target_pos){  // <
       dir = true;
       enabled = true;
     }
     else{
       enabled = false;
     }    
-    one_step(enabled, dir, 100);
+    one_step(enabled, dir, 60);
   }
 
   
   counter += 1;
-  
+  /*
   if (counter >= 50){
     Serial.println(encoder_value);
     Serial.print("------");
-    Serial.print(ch[3]);
+    Serial.print((String)ch[0] + "  " +  ch[1] +  "  " + ch[2] +  "  " + ch[3] +  "  " + ch[4] +  "  " + ch[5] +  "  " + ch[6] +  "  " + ch[7]);
     Serial.print("    ");
     Serial.print(target_pos);
     Serial.print("   ");
     Serial.print(encoder_value);
     Serial.print("\n");
     counter = 0;
-  }
-
+  }*/
+  
+  
   // END - STEERING
 
 }
