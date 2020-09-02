@@ -107,7 +107,7 @@ void loop() {
     }
   else{
     digitalWrite(linear_enable, LOW); // To stop brake from going over off position
-    if (990 > ch[3] && ch[3] > 550){  // Starts throttle
+    if (ch[3] > 550){  // Starts throttle
       throttle = map(ch[3], 520, 980, 40, 240);
       analogWrite(throttle_pin, throttle);  // Throttles motor
       }
