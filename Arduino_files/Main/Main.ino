@@ -1,4 +1,5 @@
 #include "PPMReader.h"      // Used to receive RC signal
+#include "IBusBM.h" //RC receiver
 
 // PINS
 const int magnet_sensor_pin = A0;
@@ -70,9 +71,14 @@ int received_gear;
 int received_steering_lock;
 int received_handbrake;
 
+IBusBM IBus;    // IBus object
+int tempval;
+
+
 void setup() {
-  
-  Serial.begin(9600);
+  IBus.begin(Serial);    // iBUS object connected to serial0 RX pin
+
+  //Serial.begin(115200);
 
   pinMode(encoder_CS_pin, OUTPUT);     // Chip select
   pinMode(encoder_CLK_pin, OUTPUT);     // Serial clock
@@ -93,25 +99,36 @@ void setup() {
   //pinMode(brake_light, OUTPUT);
 }
 int temp;
+int value;
 
 void loop() { // Main loop
+  
+  //tempval = IBus.readChannel(1); // get latest value for servo channel 1
   
   ReadSSI();   // Reads steering encoder value, 12-bit
   
   current_steering_value = map(encoder_reading, 0, 4095, 0, 360);  // Maps steering encoder reading from 12-bit to 0-360 range
   
-  ReadRCValues();   // Reads RC channels, ranging 1000-2000
+  //ReadRCValues();   // Reads RC channels, ranging 1000-2000
 
   /*if (RC_channel_values[0] < 900){  // If RC transmitter is off, skip everything
     return;
   }*/
 
+  /*
   received_steering = RC_channel_values[RC_steering_channel];
   received_throttle = RC_channel_values[RC_throttle_channel];
   received_gear = RC_channel_values[RC_gear_channel];
   received_steering_lock = RC_channel_values[RC_steering_lock_channel];
   received_handbrake = RC_channel_values[RC_handbrake_channel];  
+  */ 
 
+  received_steering = IBus.readChannel(RC_steering_channel);
+  received_throttle = IBus.readChannel(RC_throttle_channel);
+  received_gear = IBus.readChannel(RC_gear_channel);
+  received_steering_lock = IBus.readChannel(RC_steering_lock_channel);
+  received_handbrake = IBus.readChannel(RC_handbrake_channel);  
+  
   lock_steering = (received_steering_lock > 1500) ? true : false; 
   reverse_gear = (received_gear > 1500) ? true: false;
   handbrake = (received_handbrake > 1100) ? true: false;
@@ -166,6 +183,15 @@ void loop() { // Main loop
   // START - STEERING
   
   target_steering_value = map(received_steering, 1000, 2000, steering_left_value, steering_right_value);
+  /*
+  for (int i = 0; i < 8; i++){
+    value = IBus.readChannel(i);
+    if (value == 1500 || value == 1000 || value == 2000){
+    }
+    else{
+      Serial.println(value);
+    }
+  }*/
   //Serial.println((String) encoder_reading + "  " + current_steering_value + " " + target_steering_value);  // PRINT PRINT PRINT PRINT PRINT PRINT PRINT PRINT PRINT PRINT PRINT PRINT PRINT
   if (not lock_steering){
     if (current_steering_value > target_steering_value){
