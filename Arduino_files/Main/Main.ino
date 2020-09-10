@@ -1,5 +1,10 @@
-#include "PPMReader.h"      // Used to receive RC signal
 #include "IBusBM.h" //RC receiver
+#include <ros.h>
+#include <std_msgs/Float32.h>
+#include <std_msgs/Int32MultiArray.h>
+#include <std_msgs/Float32MultiArray.h>
+#include <sensor_msgs/Joy.h>
+#include <std_msgs/String.h>
 
 // PINS
 const int magnet_sensor_pin = A0;
@@ -37,8 +42,6 @@ const int RC_steering_lock_channel = 5; // Switch D (rightmost)
 const int RC_handbrake_channel = 6;     // Switch C (mid right)
 // RC CHANNELS
 
-PPMReader ppmReader(rc_receiver_pin, 0, false); // Setting up RC receiver PPMReader
-
 
 unsigned int encoder_reading;             // Encoder_reading is a 12-bit value with range 0-4095
 int current_steering_value;               // current_steering_value is encoder_reading mapped to 0-360 degrees
@@ -74,8 +77,28 @@ int received_handbrake;
 IBusBM IBus;    // IBus object
 int tempval;
 
+ros::NodeHandle  nh;
 
-void setup() {
+std_msgs::String str_msg;
+std_msgs::Float32MultiArray axes;
+std_msgs::Int32MultiArray buttons;
+std_msgs::Float32 float1;
+ros::Publisher receiver_channelsatter("receiver_channelsatter", &float1);
+
+void joydata ( const sensor_msgs::Joy& joy)
+{
+  axes.data = joy.axes;
+  buttons.data = joy.buttons;
+}
+
+ros::Subscriber<sensor_msgs::Joy> sub1("joy", joydata);
+
+void setup()
+{
+  nh.initNode();
+  nh.subscribe(sub1);
+  nh.advertise(receiver_channelsatter);
+
   IBus.begin(Serial);    // iBUS object connected to serial0 RX pin
 
   //Serial.begin(115200);
@@ -102,6 +125,8 @@ int temp;
 int value;
 
 void loop() { // Main loop
+
+  nh.spinOnce();
   
   //tempval = IBus.readChannel(1); // get latest value for servo channel 1
   
